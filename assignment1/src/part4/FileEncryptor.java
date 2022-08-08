@@ -3,6 +3,7 @@ package part4;
 import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.PBEParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.nio.charset.Charset;
@@ -83,12 +84,8 @@ public class FileEncryptor {
                 error("Key length must be a number");
             }
 
-            //Generate the IV
-            SecureRandom sr = new SecureRandom();
-            byte[] initVector = new byte[16];
-            sr.nextBytes(initVector);
 
-            enc(algorithm, keyLength, args[3].toCharArray(), initVector, args[4], args[5]);
+            enc(algorithm, keyLength, args[3].toCharArray(), args[4], args[5]);
         } else if (Objects.equals(args[0], "dec")) {
             if (args.length != 4) {
                 error("Invalid number of inputs");
@@ -106,25 +103,33 @@ public class FileEncryptor {
      * The Method is used to encrypt the file at the given directory and save it at the
      * location specified
      * @param password - The password give by the user which will be used to create a secret key
-     * @param initVector - The initial vector for encrypting the file
      * @param inputDir - The path to the file that is being encrypted
      * @param outputDir - The path where the encrypted file will be save
      * @throws Exception - Exceptions thrown by internal methods
      */
-    public void enc(String algorithm, int keyLength, char[] password, byte[] initVector, String inputDir, String outputDir) throws Exception {
+    public void enc(String algorithm, int keyLength, char[] password, String inputDir, String outputDir) throws Exception {
+
+        Cipher cipher = Cipher.getInstance(algorithm + "/CBC/PKCS5Padding");
+
+
+        byte[] iv = new byte[cipher.getBlockSize()];
+        RANDOM.nextBytes(iv);
 
         // Salt
         byte[] salt = new byte[16];
         RANDOM.nextBytes(salt);
 
-        byte[] secret = generateKey(password, salt, keyLength, algorithm).getEncoded();
+        IvParameterSpec ivv = new IvParameterSpec(iv);
+        PBEKeySpec pbeKeySpec = new PBEKeySpec(password, salt, COUNT, keyLength);
 
-        System.out.println("Secret key is " + bytesToHex(secret).replaceAll("\\s+", ""));
+        SecretKeyFactory keyFac = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+        SecretKey pbeKey = keyFac.generateSecret(pbeKeySpec);
 
-        IvParameterSpec iv = new IvParameterSpec(initVector);
-        SecretKeySpec skeySpec = new SecretKeySpec(secret, algorithm);
-        Cipher cipher = Cipher.getInstance(CIPHER);
-        cipher.init(Cipher.ENCRYPT_MODE, skeySpec, iv);
+        SecretKeySpec key = new SecretKeySpec(pbeKey.getEncoded(), algorithm);
+
+        cipher.init(Cipher.ENCRYPT_MODE, key, ivv);
+
+        System.out.println("Secret key is " + bytesToHex(key.getEncoded()).replaceAll("\\s+", ""));
 
         try (FileInputStream fin = new FileInputStream(inputDir);
              FileOutputStream fout = new FileOutputStream(outputDir);
@@ -132,7 +137,7 @@ public class FileEncryptor {
              }) {
 
             //Write the IV to the file
-            fout.write(initVector);
+            fout.write(iv);
             //Write salt to the file
             fout.write(salt);
 
@@ -178,10 +183,13 @@ public class FileEncryptor {
             List<String> attList = getAttributes(inputDir);
 
             IvParameterSpec iv = new IvParameterSpec(ivs);
+            PBEKeySpec pbeKeySpec = new PBEKeySpec(password);
+            PBEParameterSpec pbeParamSpec = new PBEParameterSpec(salt, COUNT, iv);
+            SecretKeyFactory keyFac = SecretKeyFactory.getInstance("PBEWithHmacSHA256AndAES_256");
+            SecretKey pbeKey = keyFac.generateSecret(pbeKeySpec);
 
-            SecretKeySpec skeySpec = new SecretKeySpec(generateKey(password, salt, Integer.parseInt(attList.get(0)), attList.get(1)).getEncoded(), attList.get(1));
-            Cipher cipher = Cipher.getInstance(CIPHER);
-            cipher.init(Cipher.DECRYPT_MODE, skeySpec, iv);
+            Cipher cipher = Cipher.getInstance("PBEWithHmacSHA256AndAES_256");
+            cipher.init(Cipher.DECRYPT_MODE, pbeKey, pbeParamSpec);
 
 
             //Do the decryption
