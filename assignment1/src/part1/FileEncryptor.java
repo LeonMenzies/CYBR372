@@ -21,8 +21,7 @@ public class FileEncryptor {
     private static final String CIPHER = "AES/CBC/PKCS5PADDING";
 
     /***
-     * The Main method Checks the args to decide if encryption or decryption is being preformed and
-     * then call teh corresponding method
+     * The main is called when the program is run by the user. It creates a new FileEncryption object and runs it with the given arguments
      *
      * @param args - The arguments passed from console inputs
      * @throws Exception - Exceptions thrown by internal methods
@@ -31,6 +30,11 @@ public class FileEncryptor {
         new FileEncryptor().run(args);
     }
 
+    /***
+     * This method is on charge of running the first step in the algorithm by reading the users input and
+     * @param args - The argument instructions from the user
+     * @throws Exception - Exceptions thrown by internal methods which will be handled in a seperate method
+     */
     public void run(String[] args) throws Exception {
         if (Objects.equals(args[0], "enc")) {
             if (args.length != 3) {
@@ -110,6 +114,7 @@ public class FileEncryptor {
         }
         LOG.info("Decryption complete, open " + outputDir);
     }
+
 
     public static void error(String message) {
         System.out.println(message);
