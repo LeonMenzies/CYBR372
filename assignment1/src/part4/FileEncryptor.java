@@ -4,13 +4,15 @@ import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.*;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.attribute.UserDefinedFileAttributeView;
 import java.security.SecureRandom;
-import java.security.spec.KeySpec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -26,25 +28,34 @@ public class FileEncryptor {
     private static final int COUNT = 1000;
 
     /***
-     * The Main method Checks the args to decide if encryption or decryption is being preformed and
-     * then call teh corresponding method
+     * The main is called when the program is run by the user. It creates a new FileEncryption object and runs it with the given arguments
      *
      * @param args - The arguments passed from console inputs
-     * @throws Exception - Exceptions thrown by internal methods
      */
-    public static void main(String[] args) throws Exception {
-        new FileEncryptor().run(args);
+    public static void main(String[] args) {
+        try {
+            new FileEncryptor().run(args);
+        } catch (Exception e) {
+            handleExceptions(e);
+        }
     }
 
+    /***
+     * This method is on charge of running the first step in the algorithm by reading the users input and
+     * @param args - The argument instructions from the user
+     * @throws Exception - Exceptions thrown by internal methods which will be handled in a separate method
+     */
     public void run(String[] args) throws Exception {
         if (Objects.equals(args[0], "enc")) {
             if (args.length != 6) {
                 error("Invalid number of inputs");
             }
 
+            //Default values
             String algorithm = "AES";
             int keyLength = 256;
 
+            //Check for AES, if given make sure key length is valid
             if (Objects.equals(args[1], "AES")) {
                 try {
                     keyLength = Integer.parseInt(args[2]);
@@ -56,6 +67,8 @@ public class FileEncryptor {
                     error("Key length must be a number");
                 }
                 algorithm = args[1];
+
+                //Check for Blowfish, if given make sure key length is valid
             } else if (Objects.equals(args[1], "Blowfish")) {
                 try {
                     keyLength = Integer.parseInt(args[2]);
@@ -77,7 +90,7 @@ public class FileEncryptor {
             } catch (NumberFormatException nfe) {
                 error("Key length must be a number");
             }
-            
+
             enc(algorithm, keyLength, args[3].toCharArray(), args[4], args[5]);
         } else if (Objects.equals(args[0], "dec")) {
             if (args.length != 4) {
@@ -123,28 +136,28 @@ public class FileEncryptor {
 
         System.out.println("Secret key is " + bytesToHex(key.getEncoded()).replaceAll("\\s+", ""));
 
-        try (FileInputStream fin = new FileInputStream(inputDir);
-             FileOutputStream fout = new FileOutputStream(outputDir, false);
-             CipherOutputStream cipherOut = new CipherOutputStream(fout, cipher) {
-             }) {
+        try (InputStream fin = Files.newInputStream(Paths.get(inputDir)); FileOutputStream fout = new FileOutputStream(outputDir, false); CipherOutputStream cipherOut = new CipherOutputStream(fout, cipher) {
+        }) {
+            try {
+                //Write the IV to the file
+                fout.write(iv);
+                //Write salt to the file
+                fout.write(salt);
 
-            //Write the IV to the file
-            fout.write(iv);
-            //Write salt to the file
-            fout.write(salt);
+                final byte[] bytes = new byte[1024];
+                for (int length = fin.read(bytes); length != -1; length = fin.read(bytes)) {
+                    cipherOut.write(bytes, 0, length);
+                }
 
-            final byte[] bytes = new byte[1024];
-            for (int length = fin.read(bytes); length != -1; length = fin.read(bytes)) {
-                cipherOut.write(bytes, 0, length);
+                //Write meta data to file attributes
+                UserDefinedFileAttributeView userDefinedFAView = Files.getFileAttributeView(Paths.get(outputDir), UserDefinedFileAttributeView.class);
+                //Write the key to the file meta-data
+                userDefinedFAView.write(keyLength + "", Charset.defaultCharset().encode(keyLength + ""));
+                //Write the algorithm type to the file meta-data
+                userDefinedFAView.write(algorithm, Charset.defaultCharset().encode(algorithm));
+            } catch (IOException e) {
+                handleExceptions(e);
             }
-
-            //Write meta data to file attributes
-            UserDefinedFileAttributeView userDefinedFAView = Files.getFileAttributeView(Paths.get(outputDir), UserDefinedFileAttributeView.class);
-            //Write the key to the file meta-data
-            userDefinedFAView.write(keyLength + "", Charset.defaultCharset().encode(keyLength + ""));
-            //Write the algorithm type to the file meta-data
-            userDefinedFAView.write(algorithm, Charset.defaultCharset().encode(algorithm));
-
         } catch (IOException e) {
             LOG.log(Level.INFO, "Unable to encrypt", e);
         }
@@ -162,7 +175,7 @@ public class FileEncryptor {
     public void dec(char[] password, String inputDir, String outputDir) throws Exception {
         byte[] iv;
         byte[] salt;
-        try (InputStream encryptedData = new FileInputStream(inputDir)) {
+        try (InputStream encryptedData = Files.newInputStream(Paths.get(inputDir))) {
             //Get the attributes needed to create the key and decrypt the data
             List<String> attList = getAttributes(inputDir);
             Cipher cipher = Cipher.getInstance(attList.get(1) + "/CBC/PKCS5Padding");
@@ -187,9 +200,13 @@ public class FileEncryptor {
             //Do the decryption
             try (CipherInputStream decryptStream = new CipherInputStream(encryptedData, cipher); OutputStream decryptedOut = new FileOutputStream(outputDir)) {
 
-                final byte[] bytes = new byte[1024];
-                for (int length = decryptStream.read(bytes); length != -1; length = decryptStream.read(bytes)) {
-                    decryptedOut.write(bytes, 0, length);
+                try {
+                    final byte[] bytes = new byte[1024];
+                    for (int length = decryptStream.read(bytes); length != -1; length = decryptStream.read(bytes)) {
+                        decryptedOut.write(bytes, 0, length);
+                    }
+                } catch (IOException e) {
+                    handleExceptions(e);
                 }
             } catch (IOException ex) {
                 Logger.getLogger(FileEncryptor.class.getName()).log(Level.SEVERE, "Unable to decrypt", ex);
@@ -197,14 +214,25 @@ public class FileEncryptor {
         } catch (IOException ex) {
             Logger.getLogger(FileEncryptor.class.getName()).log(Level.SEVERE, "Unable to decrypt", ex);
         }
+        LOG.info("Decryption complete, open " + outputDir);
+
     }
 
+    /***
+     * This method prints the files info
+     * @param inputDir - Directory of the file
+     */
     public void info(String inputDir) {
         for (String att : getAttributes(inputDir)) {
             System.out.println(att + " ");
         }
     }
 
+    /***
+     * This method is for getting the attributes of the given five
+     * @param inputDir - The file we want to get the attributes from
+     * @return - A list of attributes as strings
+     */
     public List<String> getAttributes(String inputDir) {
 
         List<String> toReturn = new ArrayList<>();
@@ -215,24 +243,25 @@ public class FileEncryptor {
             System.out.println("Error reading meta data " + e.getMessage());
         }
         if (toReturn.size() != 2) {
-            error("No attributes found");
+            error("Incorrect number of attributes remove the existing file when encrypting");
         }
         return toReturn;
     }
 
-    public SecretKey generateKey(char[] password, byte[] salt, int keyLength, String algorithm) throws Exception {
-
-        SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-        KeySpec spec = new PBEKeySpec(password, salt, COUNT, keyLength);
-
-        return new SecretKeySpec(factory.generateSecret(spec).getEncoded(), algorithm);
-    }
-
-    public void error(String message) {
+    /***
+     * This is a simple method to log error messages to the user and exit the program
+     * @param message - The message to be printed
+     */
+    public static void error(String message) {
         System.out.println(message);
         System.exit(0);
     }
 
+    /***
+     * This is used to convert a byte array to hexadecimal
+     * @param bytes - Byte array to be converted
+     * @return - The hex string that has been created
+     */
     public String bytesToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes) {
@@ -240,4 +269,13 @@ public class FileEncryptor {
         }
         return sb.toString();
     }
+
+    /***
+     * This method is used to take any exception that a are thrown and print out a more readable message to the user
+     * @param e - The exception that has been thrown else where in the program
+     */
+    public static void handleExceptions(Exception e) {
+        System.out.println(e.getMessage());
+    }
+
 }

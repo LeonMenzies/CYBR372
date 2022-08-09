@@ -88,14 +88,18 @@ public class FileEncryptor {
              OutputStream fout = Files.newOutputStream(Paths.get((outputDir)));
              CipherOutputStream cipherOut = new CipherOutputStream(fout, cipher) {
              }) {
-            //Write the IV to the file
-            fout.write(initVector);
-            //Write salt to the file
-            fout.write(salt);
+            try {
+                //Write the IV to the file
+                fout.write(initVector);
+                //Write salt to the file
+                fout.write(salt);
 
-            final byte[] bytes = new byte[1024];
-            for (int length = fin.read(bytes); length != -1; length = fin.read(bytes)) {
-                cipherOut.write(bytes, 0, length);
+                final byte[] bytes = new byte[1024];
+                for (int length = fin.read(bytes); length != -1; length = fin.read(bytes)) {
+                    cipherOut.write(bytes, 0, length);
+                }
+            } catch (IOException e) {
+                handleExceptions(e);
             }
         } catch (IOException e) {
             LOG.log(Level.INFO, "Unable to encrypt", e);
