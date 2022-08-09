@@ -6,6 +6,8 @@ import javax.crypto.CipherOutputStream;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.SecureRandom;
 import java.util.HexFormat;
 import java.util.Objects;
@@ -21,16 +23,23 @@ public class FileEncryptor {
     private static final String CIPHER = "AES/CBC/PKCS5PADDING";
 
     /***
-     * The Main method Checks the args to decide if encryption or decryption is being preformed and
-     * then call teh corresponding method
+     * The main is called when the program is run by the user. It creates a new FileEncryption object and runs it with the given arguments
      *
      * @param args - The arguments passed from console inputs
-     * @throws Exception - Exceptions thrown by internal methods
      */
-    public static void main(String[] args) throws Exception {
-        new part2.FileEncryptor().run(args);
+    public static void main(String[] args) {
+        try {
+            new FileEncryptor().run(args);
+        } catch (Exception e) {
+            handleExceptions(e);
+        }
     }
 
+    /***
+     * This method is on charge of running the first step in the algorithm by reading the users input and
+     * @param args - The argument instructions from the user
+     * @throws Exception - Exceptions thrown by internal methods which will be handled in a separate method
+     */
     public void run(String[] args) throws Exception {
         if (Objects.equals(args[0], "enc")) {
             if (args.length != 4) {
@@ -50,7 +59,7 @@ public class FileEncryptor {
 
             dec(HexFormat.of().parseHex(args[1]), args[2], args[3]);
         } else {
-            System.out.println("Invalid instruction type");
+            error("Invalid instruction type");
         }
     }
 
@@ -69,16 +78,21 @@ public class FileEncryptor {
         Cipher cipher = Cipher.getInstance(CIPHER);
         cipher.init(Cipher.ENCRYPT_MODE, skeySpec, iv);
 
-        try (FileInputStream fin = new FileInputStream(inputDir); FileOutputStream fout = new FileOutputStream(outputDir); CipherOutputStream cipherOut = new CipherOutputStream(fout, cipher) {
+        try (InputStream fin = Files.newInputStream(Paths.get(inputDir)); FileOutputStream fout = new FileOutputStream(outputDir); CipherOutputStream cipherOut = new CipherOutputStream(fout, cipher) {
         }) {
 
-            //Write the IV to the file
-            fout.write(initVector);
+            try {
+                //Write the IV to the file
+                fout.write(initVector);
+                final byte[] bytes = new byte[1024];
+                for (int length = fin.read(bytes); length != -1; length = fin.read(bytes)) {
+                    cipherOut.write(bytes, 0, length);
+                }
 
-            final byte[] bytes = new byte[1024];
-            for (int length = fin.read(bytes); length != -1; length = fin.read(bytes)) {
-                cipherOut.write(bytes, 0, length);
+            } catch (IOException e) {
+                handleExceptions(e);
             }
+
         } catch (IOException e) {
             LOG.log(Level.INFO, "Unable to encrypt", e);
         }
@@ -95,12 +109,12 @@ public class FileEncryptor {
      */
     public void dec(byte[] key, String inputDir, String outputDir) throws Exception {
 
-        final byte[] ivs = new byte[16];
+        byte[] ivs;
 
-        try (InputStream encryptedData = new FileInputStream(inputDir)) {
+        try (InputStream encryptedData = Files.newInputStream(Paths.get(inputDir))) {
 
             //Read the IV from the file
-            encryptedData.read(ivs);
+            ivs = encryptedData.readNBytes(16);
 
             IvParameterSpec iv = new IvParameterSpec(ivs);
             SecretKeySpec skeySpec = new SecretKeySpec(key, ALGORITHM);
@@ -110,9 +124,13 @@ public class FileEncryptor {
             //Do the decryption
             try (CipherInputStream decryptStream = new CipherInputStream(encryptedData, cipher); OutputStream decryptedOut = new FileOutputStream(outputDir)) {
 
-                final byte[] bytes = new byte[1024];
-                for (int length = decryptStream.read(bytes); length != -1; length = decryptStream.read(bytes)) {
-                    decryptedOut.write(bytes, 0, length);
+                try {
+                    final byte[] bytes = new byte[1024];
+                    for (int length = decryptStream.read(bytes); length != -1; length = decryptStream.read(bytes)) {
+                        decryptedOut.write(bytes, 0, length);
+                    }
+                } catch (IOException e) {
+                    handleExceptions(e);
                 }
             } catch (IOException ex) {
                 Logger.getLogger(FileEncryptor.class.getName()).log(Level.SEVERE, "Unable to decrypt", ex);
@@ -121,18 +139,23 @@ public class FileEncryptor {
         } catch (IOException ex) {
             Logger.getLogger(FileEncryptor.class.getName()).log(Level.SEVERE, "Unable to decrypt", ex);
         }
+        LOG.info("Decryption complete, open " + outputDir);
     }
 
+    /***
+     * This is a simple method to log error messages to the user and exit the program
+     * @param message - The message to be printed
+     */
     public static void error(String message) {
-        System.out.println(message);
+        LOG.info(message);
         System.exit(0);
     }
 
-    public String bytesToHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            sb.append(String.format("%02X ", b));
-        }
-        return sb.toString();
+    /***
+     * This method is used to take any exception that a are thrown and print out a more readable message to the user
+     * @param e - The exception that has been thrown else where in the program
+     */
+    public static void handleExceptions(Exception e) {
+        System.out.println(e.getMessage());
     }
 }

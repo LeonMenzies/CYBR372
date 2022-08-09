@@ -3,7 +3,6 @@ package part4;
 import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.PBEParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.nio.charset.Charset;
@@ -23,7 +22,6 @@ import java.util.logging.Logger;
  */
 public class FileEncryptor {
     private static final Logger LOG = Logger.getLogger(FileEncryptor.class.getSimpleName());
-    private static final String CIPHER = "AES/CBC/PKCS5PADDING";
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int COUNT = 1000;
 
@@ -63,7 +61,7 @@ public class FileEncryptor {
                     keyLength = Integer.parseInt(args[2]);
 
                     if (!(keyLength >= 32 && keyLength <= 448)) {
-                        error("Invalid key length, must be 128, 192, or 256");
+                        error("Invalid key length, must be between 32 and 448");
                     }
                 } catch (NumberFormatException nfe) {
                     error("Key length must be a number");
@@ -76,15 +74,10 @@ public class FileEncryptor {
             try {
                 keyLength = Integer.parseInt(args[2]);
 
-                if (keyLength % 8 != 0) {
-                    error("Invalid key length, must be dividable by 8");
-                }
-
             } catch (NumberFormatException nfe) {
                 error("Key length must be a number");
             }
-
-
+            
             enc(algorithm, keyLength, args[3].toCharArray(), args[4], args[5]);
         } else if (Objects.equals(args[0], "dec")) {
             if (args.length != 4) {
@@ -111,7 +104,6 @@ public class FileEncryptor {
 
         Cipher cipher = Cipher.getInstance(algorithm + "/CBC/PKCS5Padding");
 
-
         byte[] iv = new byte[cipher.getBlockSize()];
         RANDOM.nextBytes(iv);
 
@@ -132,7 +124,7 @@ public class FileEncryptor {
         System.out.println("Secret key is " + bytesToHex(key.getEncoded()).replaceAll("\\s+", ""));
 
         try (FileInputStream fin = new FileInputStream(inputDir);
-             FileOutputStream fout = new FileOutputStream(outputDir);
+             FileOutputStream fout = new FileOutputStream(outputDir, false);
              CipherOutputStream cipherOut = new CipherOutputStream(fout, cipher) {
              }) {
 
@@ -153,7 +145,6 @@ public class FileEncryptor {
             //Write the algorithm type to the file meta-data
             userDefinedFAView.write(algorithm, Charset.defaultCharset().encode(algorithm));
 
-
         } catch (IOException e) {
             LOG.log(Level.INFO, "Unable to encrypt", e);
         }
@@ -169,28 +160,29 @@ public class FileEncryptor {
      * @throws Exception - Exceptions thrown by internal methods
      */
     public void dec(char[] password, String inputDir, String outputDir) throws Exception {
-        final byte[] ivs = new byte[16];
-        final byte[] salt = new byte[16];
+        byte[] iv;
+        byte[] salt;
         try (InputStream encryptedData = new FileInputStream(inputDir)) {
-
-            //Read the IV from the file
-            encryptedData.read(ivs);
-
-            //read the salt form the file
-            encryptedData.read(salt);
-
             //Get the attributes needed to create the key and decrypt the data
             List<String> attList = getAttributes(inputDir);
+            Cipher cipher = Cipher.getInstance(attList.get(1) + "/CBC/PKCS5Padding");
+            int ivlength = cipher.getBlockSize();
+            //Read the IV from the file
+            iv = encryptedData.readNBytes(ivlength);
 
-            IvParameterSpec iv = new IvParameterSpec(ivs);
-            PBEKeySpec pbeKeySpec = new PBEKeySpec(password);
-            PBEParameterSpec pbeParamSpec = new PBEParameterSpec(salt, COUNT, iv);
-            SecretKeyFactory keyFac = SecretKeyFactory.getInstance("PBEWithHmacSHA256AndAES_256");
+            //read the salt form the file
+            salt = encryptedData.readNBytes(16);
+
+
+            IvParameterSpec ivv = new IvParameterSpec(iv);
+            PBEKeySpec pbeKeySpec = new PBEKeySpec(password, salt, COUNT, Integer.parseInt(attList.get(0)));
+
+            SecretKeyFactory keyFac = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
             SecretKey pbeKey = keyFac.generateSecret(pbeKeySpec);
 
-            Cipher cipher = Cipher.getInstance("PBEWithHmacSHA256AndAES_256");
-            cipher.init(Cipher.DECRYPT_MODE, pbeKey, pbeParamSpec);
+            SecretKeySpec key = new SecretKeySpec(pbeKey.getEncoded(), attList.get(1));
 
+            cipher.init(Cipher.DECRYPT_MODE, key, ivv);
 
             //Do the decryption
             try (CipherInputStream decryptStream = new CipherInputStream(encryptedData, cipher); OutputStream decryptedOut = new FileOutputStream(outputDir)) {

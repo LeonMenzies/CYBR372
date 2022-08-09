@@ -5,6 +5,8 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.PBEParameterSpec;
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.SecureRandom;
 import java.util.Objects;
 import java.util.logging.Level;
@@ -19,28 +21,30 @@ public class FileEncryptor {
     private static final int COUNT = 1000;
 
     /***
-     * The Main method Checks the args to decide if encryption or decryption is being preformed and
-     * then call teh corresponding method
+     * The main is called when the program is run by the user. It creates a new FileEncryption object and runs it with the given arguments
      *
      * @param args - The arguments passed from console inputs
-     * @throws Exception - Exceptions thrown by internal methods
      */
-    public static void main(String[] args) throws Exception {
-        new FileEncryptor().run(args);
+    public static void main(String[] args) {
+        try {
+            new FileEncryptor().run(args);
+        } catch (Exception e) {
+            handleExceptions(e);
+        }
     }
 
+    /***
+     * This method is on charge of running the first step in the algorithm by reading the users input and
+     * @param args - The argument instructions from the user
+     * @throws Exception - Exceptions thrown by internal methods which will be handled in a separate method
+     */
     public void run(String[] args) throws Exception {
         if (Objects.equals(args[0], "enc")) {
             if (args.length != 4) {
                 error("Invalid number of inputs");
             }
 
-            //Generate the IV
-            SecureRandom sr = new SecureRandom();
-            byte[] initVector = new byte[16];
-            sr.nextBytes(initVector);
-
-            enc(args[1].toCharArray(), initVector, args[2], args[3]);
+            enc(args[1].toCharArray(), args[2], args[3]);
         } else if (Objects.equals(args[0], "dec")) {
             if (args.length != 4) {
                 error("Invalid number of inputs");
@@ -56,16 +60,18 @@ public class FileEncryptor {
      * The Method is used to encrypt the file at the given directory and save it at the
      * location specified
      * @param password - The password give by the user which will be used to create a secret key
-     * @param initVector - The initial vector for encrypting the file
      * @param inputDir - The path to the file that is being encrypted
      * @param outputDir - The path where the encrypted file will be save
      * @throws Exception - Exceptions thrown by internal methods
      */
-    public void enc(char[] password, byte[] initVector, String inputDir, String outputDir) throws Exception {
+    public void enc(char[] password, String inputDir, String outputDir) throws Exception {
 
         // Salt
         byte[] salt = new byte[16];
         RANDOM.nextBytes(salt);
+
+        byte[] initVector = new byte[16];
+        RANDOM.nextBytes(initVector);
 
         IvParameterSpec iv = new IvParameterSpec(initVector);
         PBEKeySpec pbeKeySpec = new PBEKeySpec(password);
@@ -78,8 +84,8 @@ public class FileEncryptor {
 
         System.out.println("Secret key is " + bytesToHex(pbeKey.getEncoded()).replaceAll("\\s+", ""));
 
-        try (FileInputStream fin = new FileInputStream(inputDir);
-             FileOutputStream fout = new FileOutputStream(outputDir);
+        try (InputStream fin = Files.newInputStream(Paths.get(inputDir));
+             OutputStream fout = Files.newOutputStream(Paths.get((outputDir)));
              CipherOutputStream cipherOut = new CipherOutputStream(fout, cipher) {
              }) {
             //Write the IV to the file
@@ -107,16 +113,15 @@ public class FileEncryptor {
      */
     public void dec(char[] password, String inputDir, String outputDir) throws Exception {
 
-        final byte[] ivs = new byte[16];
-        final byte[] salt = new byte[16];
-
-        try (InputStream encryptedData = new FileInputStream(inputDir)) {
+        byte[] ivs;
+        byte[] salt;
+        try (InputStream encryptedData = Files.newInputStream(Paths.get(inputDir))) {
 
             //Read the IV from the file
-            encryptedData.read(ivs);
+            ivs = encryptedData.readNBytes(16);
 
             //read the salt form the file
-            encryptedData.read(salt);
+            salt = encryptedData.readNBytes(16);
 
             IvParameterSpec iv = new IvParameterSpec(ivs);
             PBEKeySpec pbeKeySpec = new PBEKeySpec(password);
@@ -130,9 +135,13 @@ public class FileEncryptor {
             //Do the decryption
             try (CipherInputStream decryptStream = new CipherInputStream(encryptedData, cipher); OutputStream decryptedOut = new FileOutputStream(outputDir)) {
 
-                final byte[] bytes = new byte[1024];
-                for (int length = decryptStream.read(bytes); length != -1; length = decryptStream.read(bytes)) {
-                    decryptedOut.write(bytes, 0, length);
+                try {
+                    final byte[] bytes = new byte[1024];
+                    for (int length = decryptStream.read(bytes); length != -1; length = decryptStream.read(bytes)) {
+                        decryptedOut.write(bytes, 0, length);
+                    }
+                } catch (IOException e) {
+                    handleExceptions(e);
                 }
             } catch (IOException ex) {
                 Logger.getLogger(FileEncryptor.class.getName()).log(Level.SEVERE, "Unable to decrypt", ex);
@@ -141,13 +150,23 @@ public class FileEncryptor {
         } catch (IOException ex) {
             Logger.getLogger(FileEncryptor.class.getName()).log(Level.SEVERE, "Unable to decrypt", ex);
         }
+        LOG.info("Decryption complete, open " + outputDir);
     }
 
+    /***
+     * This is a simple method to log error messages to the user and exit the program
+     * @param message - The message to be printed
+     */
     public static void error(String message) {
         System.out.println(message);
         System.exit(0);
     }
 
+    /***
+     * This is used to convert a byte array to hexadecimal
+     * @param bytes - Byte array to be converted
+     * @return - The hex string that has been created
+     */
     public String bytesToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes) {
@@ -155,4 +174,13 @@ public class FileEncryptor {
         }
         return sb.toString();
     }
+
+    /***
+     * This method is used to take any exception that a are thrown and print out a more readable message to the user
+     * @param e - The exception that has been thrown else where in the program
+     */
+    public static void handleExceptions(Exception e) {
+        System.out.println(e.getMessage());
+    }
+
 }
