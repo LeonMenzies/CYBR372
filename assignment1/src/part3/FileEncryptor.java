@@ -3,8 +3,11 @@ package part3;
 import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.PBEParameterSpec;
-import java.io.*;
+import javax.crypto.spec.SecretKeySpec;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.SecureRandom;
@@ -19,13 +22,15 @@ public class FileEncryptor {
     private static final Logger LOG = Logger.getLogger(FileEncryptor.class.getSimpleName());
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int COUNT = 1000;
+    private static final String ALGORITHM = "AES";
+    private static final String CIPHER = "AES/CBC/PKCS5PADDING";
 
     /***
      * The main is called when the program is run by the user. It creates a new FileEncryption object and runs it with the given arguments
      *
      * @param args - The arguments passed from console inputs
      */
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         try {
             new FileEncryptor().run(args);
         } catch (Exception e) {
@@ -73,21 +78,21 @@ public class FileEncryptor {
         byte[] initVector = new byte[16];
         RANDOM.nextBytes(initVector);
 
-        IvParameterSpec iv = new IvParameterSpec(initVector);
-        PBEKeySpec pbeKeySpec = new PBEKeySpec(password);
-        PBEParameterSpec pbeParamSpec = new PBEParameterSpec(salt, COUNT, iv);
-        SecretKeyFactory keyFac = SecretKeyFactory.getInstance("PBEWithHmacSHA256AndAES_256");
-        SecretKey pbeKey = keyFac.generateSecret(pbeKeySpec);
 
-        Cipher cipher = Cipher.getInstance("PBEWithHmacSHA256AndAES_256");
-        cipher.init(Cipher.ENCRYPT_MODE, pbeKey, pbeParamSpec);
+        IvParameterSpec iv = new IvParameterSpec(initVector);
+        PBEKeySpec pbeKeySpec = new PBEKeySpec(password, salt, COUNT, 128);
+
+        SecretKeyFactory keyFac = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+        SecretKey pbeKey = keyFac.generateSecret(pbeKeySpec);
+        Cipher cipher = Cipher.getInstance(CIPHER);
+        SecretKeySpec key = new SecretKeySpec(pbeKey.getEncoded(), ALGORITHM);
+
+        cipher.init(Cipher.ENCRYPT_MODE, key, iv);
 
         System.out.println("Secret key is " + bytesToHex(pbeKey.getEncoded()).replaceAll("\\s+", ""));
 
-        try (InputStream fin = Files.newInputStream(Paths.get(inputDir));
-             OutputStream fout = Files.newOutputStream(Paths.get((outputDir)));
-             CipherOutputStream cipherOut = new CipherOutputStream(fout, cipher) {
-             }) {
+        try (InputStream fin = Files.newInputStream(Paths.get(inputDir)); OutputStream fout = Files.newOutputStream(Paths.get((outputDir))); CipherOutputStream cipherOut = new CipherOutputStream(fout, cipher) {
+        }) {
             try {
                 //Write the IV to the file
                 fout.write(initVector);
@@ -128,13 +133,14 @@ public class FileEncryptor {
             salt = encryptedData.readNBytes(16);
 
             IvParameterSpec iv = new IvParameterSpec(ivs);
-            PBEKeySpec pbeKeySpec = new PBEKeySpec(password);
-            PBEParameterSpec pbeParamSpec = new PBEParameterSpec(salt, COUNT, iv);
-            SecretKeyFactory keyFac = SecretKeyFactory.getInstance("PBEWithHmacSHA256AndAES_256");
-            SecretKey pbeKey = keyFac.generateSecret(pbeKeySpec);
+            PBEKeySpec pbeKeySpec = new PBEKeySpec(password, salt, COUNT, 128);
 
-            Cipher cipher = Cipher.getInstance("PBEWithHmacSHA256AndAES_256");
-            cipher.init(Cipher.DECRYPT_MODE, pbeKey, pbeParamSpec);
+            SecretKeyFactory keyFac = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+            SecretKey pbeKey = keyFac.generateSecret(pbeKeySpec);
+            Cipher cipher = Cipher.getInstance(CIPHER);
+            SecretKeySpec key = new SecretKeySpec(pbeKey.getEncoded(), ALGORITHM);
+
+            cipher.init(Cipher.DECRYPT_MODE, key, iv);
 
             //Do the decryption
             try (CipherInputStream decryptStream = new CipherInputStream(encryptedData, cipher); OutputStream decryptedOut = new FileOutputStream(outputDir)) {

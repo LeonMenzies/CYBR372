@@ -81,7 +81,7 @@ public class FileEncryptor {
                 }
                 algorithm = args[1];
             } else {
-                error("Invalid algorithm");
+                error(args[1] + " is an invalid algorithm, please use Blowfish or AES");
             }
 
             try {
