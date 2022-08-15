@@ -9,7 +9,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.SecureRandom;
-import java.util.HexFormat;
+import java.util.Base64;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -53,8 +53,9 @@ public class FileEncryptor {
             byte[] initVector = new byte[16];
             sr.nextBytes(initVector);
             //Print the key and IV for the user
-            System.out.println("Secret key is: " + bytesToHex(key).replaceAll("\\s+", ""));
-            System.out.println("IV is: " + bytesToHex(initVector).replaceAll("\\s+", ""));
+            System.out.println("Secret key is: " + new String(Base64.getEncoder().encode(key)));
+            System.out.println("IV is: " + new String(Base64.getEncoder().encode(initVector)));
+
 
             //Run the encryption
             enc(key, initVector, args[1], args[2]);
@@ -63,7 +64,7 @@ public class FileEncryptor {
                 error("Invalid number of inputs");
             }
             //Run the decryption
-            dec(HexFormat.of().parseHex(args[1]), HexFormat.of().parseHex(args[2]), args[3], args[4]);
+            dec(Base64.getDecoder().decode(args[1]), Base64.getDecoder().decode(args[2]), args[3], args[4]);
         } else {
             error("Invalid instruction type");
         }
@@ -142,19 +143,6 @@ public class FileEncryptor {
     public static void error(String message) {
         LOG.info(message);
         System.exit(0);
-    }
-
-    /***
-     * This is used to convert a byte array to hexadecimal
-     * @param bytes - Byte array to be converted
-     * @return - The hex string that has been created
-     */
-    public String bytesToHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            sb.append(String.format("%02X ", b));
-        }
-        return sb.toString();
     }
 
     /***

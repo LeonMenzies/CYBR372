@@ -9,7 +9,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.SecureRandom;
-import java.util.HexFormat;
+import java.util.Base64;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -51,13 +51,14 @@ public class FileEncryptor {
             byte[] initVector = new byte[16];
             sr.nextBytes(initVector);
 
-            enc(HexFormat.of().parseHex(args[1]), initVector, args[2], args[3]);
+
+            enc(Base64.getDecoder().decode(args[1]), initVector, args[2], args[3]);
         } else if (Objects.equals(args[0], "dec")) {
             if (args.length != 4) {
                 error("Invalid number of inputs");
             }
 
-            dec(HexFormat.of().parseHex(args[1]), args[2], args[3]);
+            dec(Base64.getDecoder().decode(args[1]), args[2], args[3]);
         } else {
             error("Invalid instruction type");
         }

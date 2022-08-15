@@ -15,12 +15,11 @@ Example - java FileEncryptor.java enc plaintext.txt ciphertext.enc
 Parameters:
 
 1. Type: dec
-2. Key: AC4BB15F51F40716EF952A082381FC83 (Example)
-3. IV: 0CA93F3CF5BED40073FA8546AF8185FB (Example)
+2. Key: bTJWxTZ3we9wSJsQYd8GcQ== (Example)
+3. IV: CvC9iKJ4K5IX3SJzxIq3Cw== (Example)
 4. Directory of the encrypted file: *****.enc
 5. Directory where the decrypted file should be saved: *****.txt
 
-Example - java FileEncryptor.java dec AC4BB15F51F40716EF952A082381FC83 0CA93F3CF5BED40073FA8546AF8185FB ciphertext.enc
-decrypted.txt
+Example - java FileEncryptor.java dec bTJWxTZ3we9wSJsQYd8GcQ== CvC9iKJ4K5IX3SJzxIq3Cw== ciphertext.enc decrypted.txt
 
 

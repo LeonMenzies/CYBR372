@@ -14,6 +14,7 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.UserDefinedFileAttributeView;
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
 import java.util.logging.Level;
@@ -134,8 +135,8 @@ public class FileEncryptor {
 
         cipher.init(Cipher.ENCRYPT_MODE, key, ivv);
 
-        System.out.println("Secret key is " + bytesToHex(key.getEncoded()).replaceAll("\\s+", ""));
-
+        System.out.println("Secret key is " + new String(Base64.getEncoder().encode(key.getEncoded())));
+        
         try (InputStream fin = Files.newInputStream(Paths.get(inputDir)); FileOutputStream fout = new FileOutputStream(outputDir, false); CipherOutputStream cipherOut = new CipherOutputStream(fout, cipher) {
         }) {
             try {

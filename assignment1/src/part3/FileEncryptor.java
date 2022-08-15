@@ -11,6 +11,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -89,7 +90,7 @@ public class FileEncryptor {
 
         cipher.init(Cipher.ENCRYPT_MODE, key, iv);
 
-        System.out.println("Secret key is " + bytesToHex(pbeKey.getEncoded()).replaceAll("\\s+", ""));
+        System.out.println("Secret key is: " + new String(Base64.getEncoder().encode(key.getEncoded())));
 
         try (InputStream fin = Files.newInputStream(Paths.get(inputDir)); OutputStream fout = Files.newOutputStream(Paths.get((outputDir))); CipherOutputStream cipherOut = new CipherOutputStream(fout, cipher) {
         }) {
@@ -172,18 +173,6 @@ public class FileEncryptor {
         System.exit(0);
     }
 
-    /***
-     * This is used to convert a byte array to hexadecimal
-     * @param bytes - Byte array to be converted
-     * @return - The hex string that has been created
-     */
-    public String bytesToHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            sb.append(String.format("%02X ", b));
-        }
-        return sb.toString();
-    }
 
     /***
      * This method is used to take any exception that a are thrown and print out a more readable message to the user
@@ -192,5 +181,4 @@ public class FileEncryptor {
     public static void handleExceptions(Exception e) {
         System.out.println(e.getMessage());
     }
-
 }
