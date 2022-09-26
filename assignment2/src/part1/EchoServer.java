@@ -30,7 +30,7 @@ public class EchoServer {
             out = new DataOutputStream(clientSocket.getOutputStream());
             in = new DataInputStream(clientSocket.getInputStream());
             sig = Signature.getInstance("SHA256withRSA");
-            byte[] data = new byte[256];
+            byte[] data = new byte[512];
             int numBytes;
 
             //Generate public and private key pairs programmatically
@@ -62,12 +62,19 @@ public class EchoServer {
             
             while ((numBytes = in.read(data)) != -1) {
 
+                byte[] signature = new byte[256];
+                byte[] message = new byte[256];
+                //Separate signature from message
+                ByteArrayInputStream inputStream = new ByteArrayInputStream(data);
+                inputStream.read(signature);
+                inputStream.read(message);
+
                 //**************************************************************
                 //**                       Decrypt                            **
                 //**************************************************************
 
                 cipher.init(Cipher.DECRYPT_MODE, privateKey);
-                byte[] decryptedBytes = cipher.doFinal(data);
+                byte[] decryptedBytes = cipher.doFinal(message);
                 String decryptedString = new String(decryptedBytes, StandardCharsets.UTF_8);
 
                 //Print the received decrypted message
@@ -77,15 +84,12 @@ public class EchoServer {
                 System.out.println("Checking signature...");
                 sig.initVerify(destinationPublicKey);
                 sig.update(decryptedBytes);
-
-                if (sig.verify(signatureBytes)) {
-                    System.out.println("Yes, Alice wrote this. Notice where Alice/Bob keys are used.");
+                if (sig.verify(signature)) {
+                    System.out.println("Signature matches");
                 } else {
                     throw new IllegalArgumentException("Signature does not match");
                 }
 
-
-    
                 //**************************************************************
                 //**                       Encrypt                            **
                 //**************************************************************
@@ -102,8 +106,13 @@ public class EchoServer {
                 sig.update(originalBytes);
                 byte[] signatureBytes = sig.sign();
 
+                //Concatenate the signature and the message
+                ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                outputStream.write(signatureBytes);
+                outputStream.write(cipherTextBytes);
+
                 System.out.println("Sent: "+ Util.bytesToHex(cipherTextBytes));
-                out.write(cipherTextBytes);
+                out.write(outputStream.toByteArray());
                 out.flush();
             }
             stop();

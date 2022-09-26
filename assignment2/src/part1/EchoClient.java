@@ -14,8 +14,6 @@ public class EchoClient {
     private Socket clientSocket;
     private DataOutputStream out;
     private DataInputStream in;
-    private Signature sig;
-
 
     /**
      * Setup the two way streams.
@@ -29,11 +27,8 @@ public class EchoClient {
             clientSocket = new Socket(ip, port);
             out = new DataOutputStream(clientSocket.getOutputStream());
             in = new DataInputStream(clientSocket.getInputStream());
-            sig = Signature.getInstance("SHA256withRSA");
         } catch (IOException e) {
             System.out.println("Error when initializing connection");
-        } catch (NoSuchAlgorithmException e) {
-            System.out.println("Error when initializing signature");
         }
     }
 
@@ -49,7 +44,7 @@ public class EchoClient {
             out.flush();
 
             //return reply to be decrypted
-            byte[] reply = new byte[256];
+            byte[] reply = new byte[512];
             in.read(reply);
             return reply;
         } catch (Exception e) {
@@ -114,27 +109,40 @@ public class EchoClient {
             Cipher cipher = Cipher.getInstance(cipherName);
             cipher.init(Cipher.ENCRYPT_MODE, destinationPublicKey);
 
-            //convert message to bytes
+            //Convert message to bytes
             final byte[] originalBytes = message.getBytes(StandardCharsets.UTF_8);
             byte[] cipherTextBytes = cipher.doFinal(originalBytes);
+            Signature sig = Signature.getInstance("SHA256withRSA");
 
             //Add the signature
             sig.initSign(privateKey);
             sig.update(originalBytes);
             byte[] signatureBytes = sig.sign();
 
-            System.out.println(signatureBytes.length);
-
             System.out.println("Sent: "+ Util.bytesToHex(cipherTextBytes));
 
+            //Concatenate the signature and the message
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            outputStream.write(signatureBytes);
+            outputStream.write(cipherTextBytes);
+
             //Send encrypted message and get reply
-            byte[] reply = client.sendMessage(cipherTextBytes);
+            byte[] reply = client.sendMessage(outputStream.toByteArray());
+
+
             //**************************************************************
             //**                       Decrypt                            **
             //**************************************************************
 
+            byte[] signature = new byte[256];
+            byte[] receivedMessage  = new byte[256];
+            //Separate signature from message
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(reply);
+            inputStream.read(signature);
+            inputStream.read(receivedMessage);
+
             cipher.init(Cipher.DECRYPT_MODE, privateKey);
-            byte[] decryptedBytes = cipher.doFinal(reply);
+            byte[] decryptedBytes = cipher.doFinal(receivedMessage);
             String decryptedString = new String(decryptedBytes, StandardCharsets.UTF_8);
 
             //Print the received decrypted message
@@ -145,8 +153,8 @@ public class EchoClient {
             sig.initVerify(destinationPublicKey);
             sig.update(decryptedBytes);
 
-            if (sig.verify(signatureBytes)) {
-                System.out.println("Yes, Alice wrote this. Notice where Alice/Bob keys are used.");
+            if (sig.verify(signature)) {
+                System.out.println("Signature matches");
             } else {
                 throw new IllegalArgumentException("Signature does not match");
             }
@@ -162,6 +170,6 @@ public class EchoClient {
     }
 
     public static void handleExceptions(Exception e) {
-        System.out.println(e.getMessage());
+        System.out.println("Error: " + e.getMessage());
     }
 }
