@@ -14,9 +14,8 @@ public class EchoClient {
     private Socket clientSocket;
     private DataOutputStream out;
     private DataInputStream in;
-    private PrivateKey clientPrivateKey;
-    private PublicKey clientPublicKey;
-    private PublicKey serverPublicKey;
+    private char[] password;
+
 
     /**
      * Setup the two way streams.
@@ -68,53 +67,16 @@ public class EchoClient {
         }
     }
 
-    public void keyStoreSetup() throws IOException {
-        FileInputStream fis = null;
-        try {
-            KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
-
-            //Get password from user
-            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-            System.out.print("Password: ");
-            char[] password = reader.readLine().toCharArray();
-
-            fis = new java.io.FileInputStream("src/part2/cybr372.jks");
-            ks.load(fis, password);
-            KeyStore.ProtectionParameter protParam = new KeyStore.PasswordProtection(password);
-
-            //Get private key from keystore
-            KeyStore.PrivateKeyEntry pkEntry = (KeyStore.PrivateKeyEntry)
-                    ks.getEntry("cybr372", protParam);
-            clientPrivateKey = pkEntry.getPrivateKey();
-
-            //Get public key from certificate
-            FileInputStream serverFin = new FileInputStream("src/part2/client.cer");
-            CertificateFactory serverCert = CertificateFactory.getInstance("X.509");
-            X509Certificate serverCertificate = (X509Certificate) serverCert.generateCertificate(serverFin);
-            clientPublicKey = serverCertificate.getPublicKey();
-
-            //Get public key from certificate
-            FileInputStream clientFin = new FileInputStream("src/part2/server.cer");
-            CertificateFactory clientCert = CertificateFactory.getInstance("X.509");
-            X509Certificate clientCertificate = (X509Certificate) clientCert.generateCertificate(clientFin);
-            serverPublicKey = clientCertificate.getPublicKey();
-
-        } catch (Exception e) {
-            System.out.println("Error: " + e.getMessage());
-        } finally {
-            if (fis != null) {
-                fis.close();
-            }
-        }
-    }
-
     public void run(String ip, int port) {
         try {
 
-            keyStoreSetup();
-
             //Message to be sent
             final String message = "CYBR372 Assignment 2";
+
+            //Get the password from the user
+            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+            System.out.print("Password: ");
+            password = reader.readLine().toCharArray();
 
             //Create the connection
             startConnection(ip, port);
@@ -129,7 +91,7 @@ public class EchoClient {
             final String cipherName = "RSA/ECB/PKCS1Padding";
 
             Cipher cipher = Cipher.getInstance(cipherName);
-            cipher.init(Cipher.ENCRYPT_MODE, serverPublicKey);
+            cipher.init(Cipher.ENCRYPT_MODE, Util.getPublicKey("server", password));
 
             //Convert message to bytes
             final byte[] originalBytes = message.getBytes(StandardCharsets.UTF_8);
@@ -137,7 +99,7 @@ public class EchoClient {
             Signature sig = Signature.getInstance("SHA256withRSA");
 
             //Add the signature
-            sig.initSign(clientPrivateKey);
+            sig.initSign(Util.getPrivateKey("client", password));
             sig.update(originalBytes);
             byte[] signatureBytes = sig.sign();
 
@@ -163,7 +125,7 @@ public class EchoClient {
             inputStream.read(signature);
             inputStream.read(receivedMessage);
 
-            cipher.init(Cipher.DECRYPT_MODE, clientPrivateKey);
+            cipher.init(Cipher.DECRYPT_MODE, Util.getPrivateKey("client", password));
             byte[] decryptedBytes = cipher.doFinal(receivedMessage);
             String decryptedString = new String(decryptedBytes, StandardCharsets.UTF_8);
 
@@ -172,7 +134,7 @@ public class EchoClient {
 
             //Verify the message with the signature
             System.out.println("Checking signature...");
-            sig.initVerify(serverPublicKey);
+            sig.initVerify(Util.getPublicKey("server", password));
             sig.update(decryptedBytes);
 
             if (sig.verify(signature)) {

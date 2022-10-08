@@ -15,50 +15,8 @@ public class EchoServer {
     private Socket clientSocket;
     private DataOutputStream out;
     private DataInputStream in;
+    private char[] password;
 
-    private PrivateKey serverPrivateKey;
-    private PublicKey serverPublicKey;
-    private PublicKey clientPublicKey;
-
-    public void keyStoreSetup() throws IOException {
-        FileInputStream fis = null;
-        try {
-            KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
-
-            //Get password from user
-            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-            System.out.print("Password: ");
-            char[] password = reader.readLine().toCharArray();
-
-            fis = new java.io.FileInputStream("src/part2/cybr372.jks");
-            ks.load(fis, password);
-            KeyStore.ProtectionParameter protParam = new KeyStore.PasswordProtection(password);
-
-            //Get private key from keystore
-            KeyStore.PrivateKeyEntry pkEntry = (KeyStore.PrivateKeyEntry)
-                    ks.getEntry("cybr372", protParam);
-            serverPrivateKey = pkEntry.getPrivateKey();
-
-            //Get public key from certificate
-            FileInputStream serverFin = new FileInputStream("src/part2/client.cer");
-            CertificateFactory serverCert = CertificateFactory.getInstance("X.509");
-            X509Certificate serverCertificate = (X509Certificate) serverCert.generateCertificate(serverFin);
-            clientPublicKey = serverCertificate.getPublicKey();
-
-            //Get public key from certificate
-            FileInputStream clientFin = new FileInputStream("src/part2/server.cer");
-            CertificateFactory clientCert = CertificateFactory.getInstance("X.509");
-            X509Certificate clientCertificate = (X509Certificate) clientCert.generateCertificate(clientFin);
-            serverPublicKey = clientCertificate.getPublicKey();
-
-        } catch (Exception e) {
-            System.out.println("Error: " + e.getMessage());
-        } finally {
-            if (fis != null) {
-                fis.close();
-            }
-        }
-    }
 
     /**
      * Create the server socket and wait for a connection.
@@ -68,7 +26,6 @@ public class EchoServer {
      */
     public void start(int port) {
         try {
-            keyStoreSetup();
 
             serverSocket = new ServerSocket(port);
             clientSocket = serverSocket.accept();
@@ -77,6 +34,11 @@ public class EchoServer {
             Signature sig1 = Signature.getInstance("SHA256withRSA");
             byte[] data = new byte[512];
             int numBytes;
+
+            //Get the password from the user
+            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+            System.out.print("Password: ");
+            password = reader.readLine().toCharArray();
 
 
             //Use RSA/ECB/PKCS1Padding for the asymmetric encryption and SHA256withRSA for the signing
@@ -97,7 +59,7 @@ public class EchoServer {
                 //**                       Decrypt                            **
                 //**************************************************************
 
-                cipher.init(Cipher.DECRYPT_MODE, serverPrivateKey);
+                cipher.init(Cipher.DECRYPT_MODE, Util.getPrivateKey("server", password));
                 byte[] decryptedBytes = cipher.doFinal(message);
                 String decryptedString = new String(decryptedBytes, StandardCharsets.UTF_8);
 
@@ -106,7 +68,7 @@ public class EchoServer {
 
                 //Verify the message with the signature
                 System.out.println("Checking signature...");
-                sig1.initVerify(clientPublicKey);
+                sig1.initVerify(Util.getPublicKey("client", password));
                 sig1.update(decryptedBytes);
                 if (sig1.verify(signature)) {
                     System.out.println("Signature matches");
@@ -118,7 +80,7 @@ public class EchoServer {
                 //**                       Encrypt                            **
                 //**************************************************************
 
-                cipher.init(Cipher.ENCRYPT_MODE, clientPublicKey);
+                cipher.init(Cipher.ENCRYPT_MODE, Util.getPublicKey("client", password));
 
                 //convert message to bytes
                 final byte[] originalBytes = decryptedString.getBytes(StandardCharsets.UTF_8);
@@ -126,7 +88,7 @@ public class EchoServer {
 
                 //Add the signature
                 Signature sig = Signature.getInstance("SHA256withRSA");
-                sig.initSign(serverPrivateKey);
+                sig.initSign(Util.getPrivateKey("server", password));
                 sig.update(originalBytes);
                 byte[] signatureBytes = sig.sign();
 

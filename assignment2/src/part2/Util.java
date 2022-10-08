@@ -1,9 +1,11 @@
 package part2;
 
-import java.io.UnsupportedEncodingException;
+import java.io.*;
+import java.security.*;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
 
 /**
- *
  * Originally by Erik Costlow, extended by Ian Welch
  */
 public class Util {
@@ -29,11 +31,26 @@ public class Util {
      */
     public static String strToHex(String s) {
         s = "failed decoding";
-        try  {
+        try {
             s = Util.bytesToHex(s.getBytes("UTF-8"));
         } catch (UnsupportedEncodingException e) {
             System.out.println("Unsupported Encoding Exception");
         }
         return s;
+    }
+
+    public static PrivateKey getPrivateKey(String name, char[] storePass) throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException {
+        InputStream ins = new FileInputStream("src/part2/cybr372.jks");
+        KeyStore keyStore = KeyStore.getInstance("JKS");
+        keyStore.load(ins, storePass);
+        return (PrivateKey) keyStore.getKey(name, storePass);
+    }
+
+    public static PublicKey getPublicKey(String name, char[] storePass) throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException {
+        InputStream ins = new FileInputStream("src/part2/cybr372.jks");
+        KeyStore keyStore = KeyStore.getInstance("JKS");
+        keyStore.load(ins, storePass);
+        Certificate cert = keyStore.getCertificate(name);
+        return cert.getPublicKey();
     }
 }
