@@ -6,7 +6,6 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.Arrays;
 import java.util.Base64;
 
 public class EchoServer {
@@ -15,7 +14,6 @@ public class EchoServer {
     private Socket clientSocket;
     private DataOutputStream out;
     private DataInputStream in;
-    private Signature sig;
 
     /**
      * Create the server socket and wait for a connection.
@@ -29,7 +27,7 @@ public class EchoServer {
             clientSocket = serverSocket.accept();
             out = new DataOutputStream(clientSocket.getOutputStream());
             in = new DataInputStream(clientSocket.getInputStream());
-            sig = Signature.getInstance("SHA256withRSA");
+            Signature sig1 = Signature.getInstance("SHA256withRSA");
             byte[] data = new byte[512];
             int numBytes;
 
@@ -82,9 +80,9 @@ public class EchoServer {
 
                 //Verify the message with the signature
                 System.out.println("Checking signature...");
-                sig.initVerify(destinationPublicKey);
-                sig.update(decryptedBytes);
-                if (sig.verify(signature)) {
+                sig1.initVerify(destinationPublicKey);
+                sig1.update(decryptedBytes);
+                if (sig1.verify(signature)) {
                     System.out.println("Signature matches");
                 } else {
                     throw new IllegalArgumentException("Signature does not match");

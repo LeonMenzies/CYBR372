@@ -6,7 +6,6 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.Arrays;
 import java.util.Base64;
 
 public class EchoClient {
@@ -18,9 +17,8 @@ public class EchoClient {
     /**
      * Setup the two way streams.
      *
-     * @param ip the address of the server
+     * @param ip   the address of the server
      * @param port port used by the server
-     *
      */
     public void startConnection(String ip, int port) {
         try {
@@ -55,7 +53,6 @@ public class EchoClient {
 
     /**
      * Close down our streams.
-     *
      */
     public void stopConnection() {
         try {
@@ -67,14 +64,13 @@ public class EchoClient {
         }
     }
 
-    public void run(String ip, int port){
+    public void run(String ip, int port) {
         try {
             //Message to be sent
             final String message = "CYBR372 Assignment 2";
 
             //Create the connection
-            EchoClient client = new EchoClient();
-            client.startConnection(ip, port);
+            startConnection(ip, port);
 
             //Generate public and private key pairs programmatically
             final KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
@@ -119,7 +115,7 @@ public class EchoClient {
             sig.update(originalBytes);
             byte[] signatureBytes = sig.sign();
 
-            System.out.println("Sent: "+ Util.bytesToHex(cipherTextBytes));
+            System.out.println("Sent: " + Util.bytesToHex(cipherTextBytes));
 
             //Concatenate the signature and the message
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -127,7 +123,7 @@ public class EchoClient {
             outputStream.write(cipherTextBytes);
 
             //Send encrypted message and get reply
-            byte[] reply = client.sendMessage(outputStream.toByteArray());
+            byte[] reply = sendMessage(outputStream.toByteArray());
 
 
             //**************************************************************
@@ -135,7 +131,7 @@ public class EchoClient {
             //**************************************************************
 
             byte[] signature = new byte[256];
-            byte[] receivedMessage  = new byte[256];
+            byte[] receivedMessage = new byte[256];
             //Separate signature from message
             ByteArrayInputStream inputStream = new ByteArrayInputStream(reply);
             inputStream.read(signature);
@@ -146,7 +142,7 @@ public class EchoClient {
             String decryptedString = new String(decryptedBytes, StandardCharsets.UTF_8);
 
             //Print the received decrypted message
-            System.out.println("Received: "+ decryptedString);
+            System.out.println("Received: " + decryptedString);
 
             //Verify the message with the signature
             System.out.println("Checking signature...");
@@ -158,15 +154,15 @@ public class EchoClient {
             } else {
                 throw new IllegalArgumentException("Signature does not match");
             }
-            client.stopConnection();
-        } catch (Exception e){
+            stopConnection();
+        } catch (Exception e) {
             handleExceptions(e);
         }
     }
 
-    public static void main(String[] args)  {
-       EchoClient client = new EchoClient();
-       client.run("127.0.0.1", 4444);
+    public static void main(String[] args) {
+        EchoClient client = new EchoClient();
+        client.run("127.0.0.1", 4444);
     }
 
     public static void handleExceptions(Exception e) {
