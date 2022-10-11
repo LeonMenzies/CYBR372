@@ -21,10 +21,10 @@ The following commands are used to generate the keystore with a certificates for
 ### Testing
 
 Client running
-![](../../../../../../../../../var/folders/n3/c9_flf894f74bq7xj750jhxw0000gn/T/TemporaryItems/NSIRD_screencaptureui_MW6hxj/Screen Shot 2022-10-11 at 7.38.22 PM.png)
+![](Screen Shot 2022-10-11 at 7.38.22 PM.png)
 
 server running
-![](../../../../../../../../../var/folders/n3/c9_flf894f74bq7xj750jhxw0000gn/T/TemporaryItems/NSIRD_screencaptureui_PP2Tf6/Screen Shot 2022-10-11 at 7.38.38 PM.png)
+![](Screen Shot 2022-10-11 at 7.38.38 PM.png)
 
 The process for part 2 is teh same as part 1 except this time te initial inputs are the password to the keystore and not
 the key directly. The rest of teh functionality acts the same using teh same string "CYBR372 Assignment 2".
