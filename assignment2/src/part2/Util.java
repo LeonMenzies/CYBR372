@@ -39,6 +39,13 @@ public class Util {
         return s;
     }
 
+    /**
+     * Gets a private key from the keystore based on the alias given
+     *
+     * @param name      - alias for the keystore
+     * @param storePass - password for the keystore
+     * @return - The fetched Private key
+     */
     public static PrivateKey getPrivateKey(String name, char[] storePass) throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException {
         InputStream ins = new FileInputStream("src/part2/cybr372.jks");
         KeyStore keyStore = KeyStore.getInstance("JKS");
@@ -46,6 +53,13 @@ public class Util {
         return (PrivateKey) keyStore.getKey(name, storePass);
     }
 
+    /**
+     * Gets a public key from the keystore based on the alias given
+     *
+     * @param name      - alias for the keystore
+     * @param storePass - password for the keystore
+     * @return - The fetched Public key
+     */
     public static PublicKey getPublicKey(String name, char[] storePass) throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException {
         InputStream ins = new FileInputStream("src/part2/cybr372.jks");
         KeyStore keyStore = KeyStore.getInstance("JKS");
